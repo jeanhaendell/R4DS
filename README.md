@@ -1,0 +1,1 @@
+This repository is dedicated to documenting my journey through "R for Data Science". Here, you will find my personal notes and solutions to the exercises presented in the book. This is a work-in-progress, and I will be updating it as I progress through the chapters.
