@@ -1,0 +1,84 @@
+---
+title: "19 Joins"
+format: html
+editor: visual
+---
+
+## 19.1 Introduction
+
+It's rare that a data analysis involves only a single data frame. Typically you have many data frames, and you must **join** them together to answer the questions you're interested in.
+
+### 19.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+```
+
+## 19.2 Keys
+
+### 19.2.1 Primary and foreign keys
+
+-   A **primary key** is a variable or set of variables that uniquely identifies each observation.
+
+-   When more than one variable, the key is called **compound key.**
+
+-   For example, `planes` records data about each plane. You can identify a plane by its tail number, making `tailnum` the primary key.
+
+    ```{r}
+    planes
+    ```
+
+-   A **foreign key** is a variable (or set of variables) that corresponds to a primary key in another table. For example:
+
+    -   `flights$tailnum` is a foreign key that corresponds to the primary key `planes$tailnum`.
+
+-   The primary and foreign keys almost always have the same names, which will make joining life much easier.
+
+-   It's also worth noting the opposite relationship: almost every variable name used in multiple tables has the same meaning in each place.
+
+### 19.2.2 Checking primary keys
+
+-   It's good practice to verify if primary keys do indeed uniquely identify each observation.
+
+-   One way to do this is to `count()` the primary keys and look for entries where `n` is greater than one.
+
+-   This reveals that `planes` look good:
+
+    ```{r}
+    planes %>% 
+      count(tailnum) %>% 
+      filter(n > 1)
+    ```
+
+-   In SQL, when you set a column as a primary key, the database ensures that each value in that columns is unique across all rows in the table.
+
+-   You should also check for missing values in your primary keys - if a value is missing then it can't identify an observation!
+
+    ```{r}
+    planes %>% 
+      filter(is.na(tailnum))
+    ```
+
+### 19.2.3 Surrogate keys
+
+-   After a little thinking and experimentation, we determined that there are three variables that together uniquely identify each flight:
+
+    ```{r}
+    flights %>% 
+      count(time_hour, carrier, flight) %>% 
+      filter(n > 1)
+    ```
+
+-   The absence of duplicates don't make `time_hour-carrier-flight`, though it's a good start, don't make it a primary key.
+
+-   In general it's not possible to know from the data alone whether or not a combination of variables makes a good primary key.
+
+-   That said, we might be better off introducing a simple numeric surrogate key using the row number:
+
+    ```{r}
+    flights2 <- flights %>% 
+      mutate(id = row_number(), .before = 1)
+
+    flights2
+    ```
