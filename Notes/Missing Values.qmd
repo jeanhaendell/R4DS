@@ -1,0 +1,272 @@
+---
+title: "18 Missing Values"
+format: html
+editor: visual
+---
+
+## 18.1 Introduction
+
+### 18.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+```
+
+## 18.2 Explicit missing values
+
+To begin, let's explore a few handy tools for creating or eliminating missing explicitvalues, i.e. cells where you see an `NA`.
+
+### 18.2.1 Last observation carried forward
+
+A common use for missing values is a data entry convenience. When data is entered by hand, missing values sometimes indicate that the value in the previous row has been repeated (or carried forward):
+
+```{r}
+treatment <- tribble(
+  ~person,        ~treatment, ~response,
+  "Derrick Whitmore", 1,       7,
+  NA, 2, 10,
+  NA, 3, NA,
+  "Katherine  Burke", 1, 4
+)
+
+```
+
+You can fill in these missing values with `tidyr::fill()`. It works like `select()`, taking a et of columns:
+
+```{r}
+treatment %>% 
+  fill(everything())
+```
+
+This treatment is sometimes called "last observation carried forward", of **locf** for short. You can use `.direction` argument to fill in missing values that have been generated in more exotic ways.
+
+### 18.2.2 Fixed values
+
+Some times missing values represent some fixed and known value, most commonly 0. You can use `dplyr::coalesce()` to replace them:
+
+```{r}
+x <- c(1, 4, 5, 7, NA)
+coalesce(x, 0)
+```
+
+Sometimes you'll hit the opposite problem where some concrete value actually represents a missing value.
+
+If possible, handle this when reading in the data, for example, by using the `na` argument to `readr::read_csv()`, e.g., `read_csv(path, na = "99")`.
+
+If you discover the problem later, you can use `dplyr::na_if()`:
+
+```{r}
+x <- c(1, 4, 5, 7, -99)
+na_if(x, -99)
+```
+
+### 18.2.3 NaN
+
+Before we continue, there's one special type of missing value that we'll encounter from time to time: a NaN, or **n**ot a **n**umber.
+
+It's not that important to know because it generally behaves just like `NA`.
+
+```{r}
+x <- c(NA, NaN)
+
+x * 10
+```
+
+```{r}
+x == 1 
+```
+
+```{r}
+is.na(x)
+```
+
+You'll generally encounter a `NaN` when you perform a mathematical operation that has an indeterminate result.
+
+## 18.3 Implicit missing values
+
+Missing values can also be **implicitly** missing, if an entire row of data is simply absent from the data.
+
+Let's illustrate the difference with a simple dataset that records the price of some stock each quarter:
+
+```{r}
+(stocks <- tibble(
+  year = c(2020, 2020, 2020, 2020, 2021, 2021, 2021),
+  qtr = c(1, 2, 3, 4, 2, 3, 4),
+  price = c(1.88, 0.59, 0.35, NA, 0.92, 0.17, 2.66)
+))
+```
+
+This dataset has two missing observations:
+
+-   The `price` in the fourth quarter of 2020 is explicitly missing, because its value is `NA`.
+
+-   The `price` for the first quarter of 2021 is implicitly missing, because it simply does not appear in the dataset.
+
+### 18.3.1 Pivoting
+
+Making data wider can make implicit missing values explicit because every combination of the rows and new columns must have some value.
+
+For example, if we pivot `stocks` to put the `quarter` in the columns, both missing values become explicit:
+
+```{r}
+stocks %>% 
+  pivot_wider(
+    names_from = qtr,
+    values_from = price
+  )
+```
+
+### 18.3.2 Complete
+
+`tidyr:complete()` allows you to generate explicit missing values by providing a set of variables that define the combination of rows that should exist:
+
+```{r}
+stocks %>% 
+  complete(year, qtr)
+```
+
+However, sometimes the individual variables are themselves incomplete, so you can instead provide your own data.
+
+For example, you might know that the `stocks` dataset is supposed to run from 2019 to 2021, so you could explicity supply those values for `year`:
+
+```{r}
+stocks %>% 
+  complete(year = 2019:2021, qtr)
+```
+
+### 18.3.3 Joins
+
+This brings us to another important way of revealing implicitly missing observations: joins
+
+`dplyr::anti_join(X, Y)` is a particularly useful tool here because it selects only the rows in `x` that don't have a match in `y`.
+
+For example, we can use two `anti_join()`s to reveal that we're missing information for four airports and 722 planes mentioned in `flights`:
+
+```{r}
+library(nycflights13)
+
+flights %>% 
+  distinct(faa = dest) %>% 
+  anti_join(airports)
+```
+
+```{r}
+flights %>% 
+  distinct(tailnum) %>% 
+  anti_join(planes)
+```
+
+The code above does the follow:
+
+1.  **Select distinct tail numbers from the `flights` dataset:**
+
+    `flights %>%    distinct(tailnum)`
+
+    This part of the code uses the **`distinct()`** function to extract a data frame containing unique **`tailnum`** values (airplane identifiers) from the **`flights`** dataset.
+
+2.  **Perform an anti-join with the `planes` dataset:**
+
+    `%>%    anti_join(planes)`
+
+    This part of the code performs an anti-join between the distinct tail numbers from the **`flights`** dataset and the **`planes`** dataset. The **`anti_join()`** function returns all rows from the first dataset (distinct tail numbers from **`flights`**) that do not have matching entries in the second dataset (**`planes`**), based on the common column **`tailnum`**.
+
+### 18.3.4 Exercises
+
+1.  Can you find any relationship between the carrier and the rows that appear to be missing from `planes`?
+
+    ```{r}
+    flights %>% 
+      select(carrier, tailnum) %>% 
+      group_by(carrier) %>% 
+      distinct(tailnum) %>% 
+      anti_join(planes) %>% 
+      summarize(count = n()) %>% 
+      arrange(desc(count)) %>% 
+      ggplot(aes(x = reorder(carrier, -count), y = count)) + 
+      geom_col(aes(fill = carrier)) +
+      theme_minimal() %>% 
+      labs(title = "Number of missing data",
+           x = "Carrier",
+           y = "Missing data")
+    ```
+
+The graph above indicates that the carriers AA and MQ have by far the largest number of missing data.
+
+## 18.4 Factors and empty groups
+
+A final type of missingness is the empty group, a group that doesn't contain any observations, which can arise when working with factors.
+
+For example, imagine we have a dataset that contains some health information about people:
+
+```{r}
+health <- tibble(
+  name = c("Ikaia", "Oletta", "Leriah", "Dashay", "Tresaun"),
+  smoker = factor(c("no", "no", "no", "no", "no"), levels = c("yes", "no")),
+  age = c(34, 88, 75, 47, 56)
+)
+```
+
+And we want to count the number of smokers with `dplyr::count()`:
+
+```{r}
+health %>% 
+  count(smoker)
+```
+
+This dataset only contains non-smokers, but we know that smokers exist; the group of non-smokers is empty.
+
+We can request `count()` to keep all the groups, even those not seen in the data by using `.drop = FALSE`:
+
+```{r}
+health %>% count(smoker, .drop = FALSE)
+```
+
+The same principle applies to ggplot2's discrete axes, which will also drop levels that don't have any values.
+
+You can force them to display by supplying `drop = FALSE` to the appropriate discrete axis:
+
+```{r}
+ggplot(health, aes(x = smoker)) +
+  geom_bar() 
+
+ggplot(health, aes(x = smoker)) +
+  geom_bar() + 
+  scale_x_discrete(drop = FALSE)
+```
+
+The same problem comes up more generally with `dplyr::group_by()`. And again you can use `.drop = FALSE` to preserve all factor levels:
+
+```{r}
+health %>% 
+  group_by(smoker, .drop = FALSE) %>% 
+  summarize(
+    n = n(),
+    mean_age = mean(age),
+    min_age = min(age),
+    max_age = max(age),
+    sd_age = sd(age)
+  )
+```
+
+We get some interesting results here because when summarizing an empty group, the summary functions are applied to zero-length vectors.
+
+Sometimes a simpler approach is to perform a summary and then make the implicit missings explicit with `complete()`.
+
+```{r}
+health %>% 
+  group_by(smoker) %>% 
+  summarize(
+    n = n(),
+    mean_age = mean(age),
+    min_age = min(age),
+    max_age = max(age),
+    sd_age = sd(age)
+  ) %>% 
+  complete(smoker)
+```
+
+The main drawback of this approach is that you get an `NA` for the count, even though you know that it should be zero.
+
+[^1]
+
+[^1]: `coalesce()`: find the first non-missing element.
