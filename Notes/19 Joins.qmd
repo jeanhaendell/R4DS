@@ -1,0 +1,173 @@
+---
+title: "19 Joins"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+install.packages("nycflights13")
+library(nycflights13)
+```
+
+## 19.3 Basic joins
+
+-   Now that we understand how data frames are connected via keys, we can start using joins to better understand the `flights`\`dataset.
+
+-   dplyr provides six join functions: `left_join()`, `inner_join()`, `right_join`, `full_join()`, `semi_join()`, and `anti_join()`\`.
+
+-   They all have the same interface: they take a pair of data frames (`x` and `y`) and return a data frame.
+
+-   The order of the rows and columns in the output is primarily determined by `x`.
+
+### 19.3.1 Mutating joins
+
+-   A **mutating join** allows you to combine variables from two data frames: it first matches the observations by their keys, then copies across variables from one data frame to the other.
+
+    ```{r}
+    flights2 <- flights %>% 
+      select(year, time_hour, origin, dest, tailnum, carrier)
+    ```
+
+-   There are four types of mutating join, but there's one that you'll use almost all the time: `left_join()`.
+
+-   The primary use of `left_join()` is to add in additional metadata.
+
+-   For example, we can use it to add the full airline name to the `flights2` data.
+
+```{r}
+flights2 %>% 
+  left_join(airlines)
+```
+
+-   Or we could find out the temperature and wind speed when each plane departed:
+
+    ```{r}
+    flights2 %>% 
+      left_join(weather %>% select(origin, time_hour, temp, wind_speed))
+    ```
+
+-   Or what size of plane was flying
+
+    ```{r}
+    flights2 %>% 
+      left_join(planes %>% select(tailnum, type, engines, seats))
+    ```
+
+-   When `left_join()` fails to find a match for a row in `x`, it fills in the new variables with missing values.
+
+### 19.3.2 Specifying join keys
+
+-   By default, `left_join()` will use all variables that appear in both data frames as the join key, the so called **natural** join.
+
+-   This is a useful heuristic, but it doesn't always work.
+
+-   For example, what happens if we try to join `flights2` with the complete `planes` dataset?
+
+    ```{r}
+    flights2 %>% 
+      left_join(planes)
+    ```
+
+-   We get a lot of missing matches because our join is trying to use `tailnum` and `year` as a compound key.
+
+-   Both `flights` and `planes` have a `year` column but they mean different things.
+
+-   We only want to join on `tailnum` so we need to provide an explicit specification with `join_by()`:
+
+    ```{r}
+    flights2 %>% 
+      left_join(planes, join_by(tailnum))
+    ```
+
+------------------------------------------------------------------------
+
+#### `join_by()` Function
+
+-   The `join_by()` function is more flexible and provides a richer syntax for specifying join conditions, including more complex relationships (compared to the `by` argument).
+
+-   `join_by()` shines in more complex scenarios, such as:
+
+    -   Joining on different column names:
+
+        ```{r}
+        flights2 %>% 
+          left_join(planes, joinby(tailnum == plane_tailnum))
+        ```
+
+    -   Multiple keys:
+
+        ```{r}
+        flights2 %>% 
+          left_join(planes, join_by(tailnum, year))
+        ```
+
+    -   Handling NA values explicitly:
+
+```{r}
+flights2 %>% 
+  left_join(planes, join_by(tailnum, year == year, .na_matches = "never"))
+```
+
+-   We prefer `join_by()` since it provides a clearer and more flexible specification
+
+    ------------------------------------------------------------------------
+
+```{=html}
+<!-- -->
+```
+-   `join_by(tailnum)` is short for `join_by(tailnum == tailnum)`.
+
+-   It's important to know about this fuller for two reasons.
+
+    -   Firstly, it describes the relationship between the two tables: the keys must be equal. That's why this type of join is often called an **equi join.**
+
+    -   Secondly, it's how you specify different join keys in each table.
+
+-   [`inner_join()`](https://dplyr.tidyverse.org/reference/mutate-joins.html), [`right_join()`](https://dplyr.tidyverse.org/reference/mutate-joins.html), [`full_join()`](https://dplyr.tidyverse.org/reference/mutate-joins.html) have the same interface as [`left_join()`](https://dplyr.tidyverse.org/reference/mutate-joins.html). The difference is which rows they keep: left join keeps all the rows in `x`, the right join keeps all rows in `y`, the full join keeps all rows in either `x` or `y`, and the inner join only keeps rows that occur in both `x` and `y`.
+
+### 
+
+### 19.3.3 Filtering joins
+
+-   The primary action of a **filtering join** is to filter the rows.
+
+-   There are two types: semi-joins and anti-joins.
+
+-   **Semi-joins** keep all rows in `x` that have a match in `y`.
+
+-   For example, we could use a semi-join to filter the `airports` dataset to show just the origin airports:
+
+    ```{r}
+    airports |> 
+      semi_join(flights2, join_by(faa == origin))
+    ```
+
+-   Or just the destinations:
+
+```{r}
+airports %>% 
+  semi_join(flights2, join_by(faa = dest))
+```
+
+-   **Anti-joins** are the opposite: they return all rows in `x` that don't have a match in `y`.
+
+-   They're useful for finding missing values that are **implicit** in the data.
+
+-   For example, we can find rows that are missing from `airports` by looking for flights that don't have a matching destination airport:
+
+    ```{r}
+    flights2 %>% 
+      anti_join(airports, join_by(dest = faa)) %>% 
+      distinct(dest)
+    ```
+
+    Or we can find which `tailnum`s are missing from `planes`:
+
+    ```{r}
+    flights2 %>% 
+      anti_join(planes, join_by(tailnum)) %>% 
+      distinct(tailnum)
+    ```
+
+    ### 19.3.4 Exercises
