@@ -1,0 +1,130 @@
+---
+title: "19.3.4 Exercises"
+format: html
+editor: visual
+---
+
+**1) Find the 48 hours (over the course of the whole year) that have the worst delays. Cross-reference it with the `weather` data. Can you see any patterns?**
+
+**2) Imagine you've found the top 10 most popular destinations using this code:**
+
+```         
+top_dest <- flights2 |>   count(dest, sort = TRUE) |>   head(10)
+```
+
+**How can you find all flights to those destinations?**
+
+```{r}
+top_dest %>% 
+  left_join(flights, join_by(dest))
+```
+
+3\) **Does every departing flight have corresponding weather data for that hour?**
+
+These are the flights without corresponding weather data for their respective times.
+
+```{r}
+flights %>% 
+anti_join(weather, join_by(time_hour))
+```
+
+**4) What do the tail numbers that don't have a matching record in `planes` have in common? (Hint: one variable explains \~90% of the problems.)**
+
+```{r}
+flights %>% 
+  anti_join(planes, join_by(tailnum)) %>% 
+  count(carrier, sort = T) %>% 
+  g
+
+MQ_AA <- flights %>% 
+  anti_join(planes, join_by(tailnum)) %>% 
+  count(carrier, sort = T) %>% 
+  filter(n >= 22558) %>%
+  summarize(total = sum(n))
+
+Resto <- flights %>% 
+  anti_join(planes, join_by(tailnum)) %>% 
+  count(carrier, sort = T) %>% 
+  filter(n < 22558) %>%
+  summarize(total = sum(n))
+
+MQ_AA / (MQ_AA + Resto)
+```
+
+90% of flights without matches for the tail number in planes are from the airlines AA and MQ.
+
+5\) **Add a column to `planes` that lists every `carrier` that has flown that plane. You might expect that there's an implicit relationship between plane and airline, because each plane is flown by a single airline. Confirm or reject this hypothesis using the tools you've learned in previous chapters.**
+
+```{r}
+planes %>% 
+  left_join(flights %>% select(carrier, tailnum), join_by(tailnum)) %>% 
+  group_by(tailnum) %>% 
+  summarise(num_carriers = n_distinct(carrier)) %>% 
+  arrange(desc(num_carriers))
+
+```
+
+With this code, we can see that many planes are flown by more than two carriers, thus rejecting the hypothesis of uniqueness.
+
+**6) Add the latitude and the longitude of the origin *and* destination airport to `flights`. Is it easier to rename the columns before or after the join?**
+
+```{r}
+airports2 <- airports %>% 
+  select(faa, lat, lon)
+
+flights %>% 
+  left_join(airports2, join_by(origin == faa)) %>% 
+  left_join(airports2, join_by(dest == faa)) %>% 
+  select(origin, dest, lat.x, lon.x, lat.y, lon.y) %>% 
+  rename("latitude_origin" = "lat.x",
+         "longitude_origin" = "lon.x",
+         "latitude_dest" = "lat.y",
+         "longitude_dest" = "lon.y")
+```
+
+It's easier to rename the columns after the join, since renaming them before would make no difference (because the latitude and longitude are in just one column, regardless of whether it refers to the origin or destination).
+
+**7) Compute the average delay by destination, then join on the `airports` data frame so you can show the spatial distribution of delays. Here's an easy way to draw a map of the United States:**
+
+```{r}
+airports |>
+  semi_join(flights, join_by(faa == dest)) |>
+  ggplot(aes(x = lon, y = lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+```
+
+```{r}
+flights %>% 
+  group_by(dest) %>% 
+  summarize(avg_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  left_join(airports, join_by(dest == faa)) %>% 
+  ggplot(aes(x = lon, y = lat)) +
+  borders("state") +
+  geom_point(aes(color = avg_delay)) +
+  coord_quickmap(xlim = c(-130,-65), ylim = c(25, 50)) + 
+  scale_color_gradient(low = "blue", high = "black") +
+  theme_bw()
+
+```
+
+**8)** W**hat happened on June 13 2013? Draw a map of the delays, and then use Google to cross-reference with the weather.**
+
+```{r}
+flights %>% 
+  filter(year == 2013 & month == 6 & day == 13) %>% 
+  group_by(dest) %>% 
+  summarize(avg_delay = mean(arr_delay, na.rm = TRUE)) %>% 
+  left_join(airports, join_by(dest == faa)) %>% 
+  ggplot(aes(x = lon, y = lat)) +
+  borders("state") +
+  geom_point(aes(color = avg_delay)) +
+  coord_quickmap(xlim = c(-125, -70)) +
+  scale_color_gradient(low = "red", high = "black", na.value = "grey50")
+
+```
+
+The flights are more delayed on this day compared to the previous analysis that included all days.
+
+> From June 12 to June 13, 2013, two [derechos](https://en.wikipedia.org/wiki/Derecho "Derecho") occurred across different areas of the [Eastern United States](https://en.wikipedia.org/wiki/Eastern_United_States "Eastern United States"). The initial derecho formed on the afternoon of June 12 and tracked across a large section of the [Midwestern United States](https://en.wikipedia.org/wiki/Midwestern_United_States "Midwestern United States"), the central [Appalachians](https://en.wikipedia.org/wiki/Appalachian_Mountains "Appalachian Mountains"), and the [Mid-Atlantic states](https://en.wikipedia.org/wiki/Mid-Atlantic_states "Mid-Atlantic states") before moving into the Atlantic Ocean during the morning of June 13. A second, more widespread and intense derecho occurred on June 13 across the [Southeastern United States](https://en.wikipedia.org/wiki/Southeastern_United_States "Southeastern United States"), resulting in major wind damage across [North Carolina](https://en.wikipedia.org/wiki/North_Carolina "North Carolina"), [Virginia](https://en.wikipedia.org/wiki/Virginia "Virginia"), and [Maryland](https://en.wikipedia.org/wiki/Maryland "Maryland"), among other states. These storms caused at least three deaths and extensive damage property damage -- resulting from both tornadoes and straight-line winds -- from [Iowa](https://en.wikipedia.org/wiki/Iowa "Iowa") to [South Carolina](https://en.wikipedia.org/wiki/South_Carolina "South Carolina") - Wikipedia
