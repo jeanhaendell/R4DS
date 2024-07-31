@@ -1,0 +1,90 @@
+---
+title: "20 Spreadsheets"
+format: html
+editor: visual
+---
+
+## 20.1 Introduction
+
+```{r}
+library(readxl)
+library(tidyverse)
+```
+
+-   The first argument to `read_excel()` is the path to the file to read
+
+```{r}
+students <- read_excel("students.xlsx")
+```
+
+-   `read_excel()` will read the file as a tibble.
+
+    -   You can provide column names that follow a consistent format; we reccomend `snake_case` using the `col_names` argument.
+
+```{r}
+read_excel(
+  "students.xlsx",
+  col_names = c("student_id", "full_name", "favourite_food", "meal_plan", "age")
+)
+```
+
+Unfortunately, this didn't quite do the trick. We now have the variable names we want, but what was previously the header row now shows up as the first observation in the data. You can explicitly skip that row using the `skip` argument.
+
+```{r}
+read_excel(
+  "students.xlsx",
+  col_names = c("student_id", "full_name", "favourite_food", "meal_plan", "age"),
+  skip = 1
+)
+```
+
+-   You can specify which character strings should be recognized as `NA`s with the `na` argument. By default, only `""` (empty string, or, in the case of reading from a spreadsheet, an empty cell or a cell with the formula `=NA()` is recognized as an `NA`.
+
+    ```{r}
+    read_excel(
+      "students.xlsx",
+      col_names = c("student_id", "full_name", "favourite_food", "meal_plan", "age"),
+      skip = 1,
+      na = c("", "N/A")
+    )
+    ```
+
+-   One other remaining issue is that `age` is read is a character variable, but it really should be numeric.
+
+-   You can supply a `col_types()` argument to `read_excel()` and specify the column types for the variables you read in.
+
+Your options are `skip`, `guess`, `logical`, `numeric`, `date`, `text` or `list`.
+
+```{r}
+read_excel(
+  "students.xlsx",
+  col_names = c("student_id", "full_name", "favourite_food", "meal_plan", "age"),
+  skip = 1,
+  na = c("", "N/A"),
+  col_types = c("numeric", "text", "text", "text", "numeric")
+)
+```
+
+-   However, this didn't quite produce the desired result either.
+
+-   By specifying that `age` should be numeric, we have turned the one cell with the non-numeric entry into an `NA`.
+
+-   In this case, we should read age in as `text` and then make the change once the data is loaded in R.
+
+    ```{r}
+    students <- read_excel(
+      "students.xlsx",
+      col_names = c("student_id", "full_name", "favourite_food", "meal_plan", "age"),
+      skip = 1,
+      na = c("", "N/A"),
+      col_types = c("numeric", "text", "text", "text", "text")
+    )
+
+    students <- students %>% 
+      mutate(
+        age = if_else(age == "five", "5", age),
+        age = parse_number(age)
+      )
+
+    students
+    ```
