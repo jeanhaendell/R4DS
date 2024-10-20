@@ -1,0 +1,75 @@
+---
+title: "21 Database"
+format: html
+editor: visual
+---
+
+```{r}
+library(DBI)
+library(dbplyr)
+library(tidyverse)
+```
+
+## 21.3 Connecting to a database
+
+-   To connect to the database from R, you'll use a pair of packages:
+
+    -   You'll always use DBI (**d**ata**b**ase **i**nterface) because it provides a set of generic functions that connect to the database, upload data, run SQL, queries, etc.
+
+    -   You'll also use a package tailored for the DBMS you're connecting to.
+
+-   Concretely, you create a database connection using `DBI::dbConnect()`.
+
+-   The first argument selects the DMBS, then the second and subsequent arguments describe how to connect to it. The following code shows a couple of typical examples:
+
+    ```{r}
+    con <- DBI::dbConnect(
+      RMariaDB::MariaDB(),
+      username = "foo"
+    )
+
+    con <- DBI::dbConnect(
+      RPostgres::Postgres(),
+      hostname = "databases.mycompany.com",
+      port = 1234
+    )
+    ```
+
+-   We'll use a in-process DBMS that lives entirely in a R package: `duckdb`.
+
+-   Thanks to the magic of DBI, the only difference between using duckdb and any other DBMS is how you'll connect to the database.
+
+    ```{r}
+    con <- DBI::dbConnect(duckdb::duckdb())
+    ```
+
+### 21.3.2 Load some data
+
+-   Since this is a new database, we need to start by adding some data.
+
+-   Here we'll add `mpg` and `diamonds` datasets from ggplot2 using `DBI::dbWriteTable()`.
+
+-   The simplest usage of `dbWriteTable()` needs three arguments: a database connection, the name of the table to create in the database, and a data frame of data
+
+    ```{r}
+    dbWriteTable(con, "mpg", ggplot2::mpg)
+    dbWriteTable(con, "diamonds", ggplot2::diamonds)
+    ```
+
+### 21.3.3 DBI basics
+
+-   You can check that the data is loaded correctly by using a couple of other DBI functions: `dbListTables()` lists all tables in the database and `dbReadTable()` retrieves the contents of a table.
+
+    ```{r}
+    dbListTables(con)
+    ```
+
+```{r}
+con %>% 
+  dbReadTable("diamonds") %>% 
+  as_tibble()
+```
+
+## 21.5 SQL
+
+-   Luckily, if you understand `dplyr` you're in a great place to quickly pick up SQL because so many of the concepts are the same.
