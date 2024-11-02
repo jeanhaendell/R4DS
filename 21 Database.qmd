@@ -301,4 +301,69 @@ flights %>%
 
     -   `SQL` uses only `''` for strings, not `""`. In SQL, `""` is used to identify variables.
 
--   
+-   Another useful SQL operator is `IN`, which is very close to R's `%in%:`
+
+    ```{r}
+    flights %>% 
+      filter(dest %in% c("IAH", "HOU")) %>% 
+      show_query()
+    ```
+
+-   SQL uses `NULL` instead of `NA`.
+
+-   The main difference is that while they're "infectious" in comparisons and arithmetic, they are silently dropped when summarizing.
+
+    ```{r}
+    flights %>%
+      group_by(dest) %>% 
+      summarize(delay = mean(arr_delay))
+    ```
+
+-   In general, you can work with `NULL`s using the function you'd use for `NA`s in R:
+
+    ```{r}
+    flights %>% 
+      filter(!is.na(dep_delay)) %>% 
+      show_query()
+    ```
+
+-   Note that if you `filter()` a variable that you created using a summarize, dbplyr will generate a `HAVING` clause, rather than a `WHERE` clause.
+
+-   This is a one of the idiosyncrasies of SQL: `WHERE` is evaluated before `SELECT` and `GROUP BY`, so SQL needs another clause that's evaluated afterwards.
+
+    ```{r}
+    diamonds_db %>% 
+      group_by(cut) %>% 
+      summarize(n = n()) %>% 
+      filter(n > 100) %>% 
+      show_query()
+    ```
+
+### 21.3.6 ORDER BY
+
+-   Ordering rows involves a straightforward translation from `arrange()` to the `ORDER BY` clause:
+
+    ```{r}
+    flights %>% 
+      arrange(year, month, day, desc(dep_delay)) %>% 
+      show_query()
+    ```
+
+-   Notice how `desc()` is translated to `DESC`: this is one of the many dplyr functions whose name was directly inspired by SQL.
+
+### Subqueries
+
+-   A **subquery** is just a query used as a data source in the `FROM` clause, instead of the usual table.
+
+-   dbplyr typically uses subqueries to work around limitations of SQL.
+
+-   For example, expressions in the `SELECT`clause can't refer to columns that where just created.
+
+### 21.5.8 Joins
+
+-   If you're familair with dplyr's joins, SQL joins are very similar. Here's a simple example:
+
+    ```{r}
+    flights %>% 
+      left_join(planes %>%  rename(year_built = year), by = "tailnum") 
+    ```
