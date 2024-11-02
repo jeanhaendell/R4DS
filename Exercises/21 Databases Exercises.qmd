@@ -1,0 +1,63 @@
+---
+title: "21 Databases Exercises"
+format: html
+editor: visual
+---
+
+## 21.5.10 Exercises
+
+1.  **What is `distinct()` translated to? How about `head()`**
+
+    ```{r}
+    flights %>%
+      distinct(carrier) %>% 
+      show_query()
+
+    ```
+
+`distinct()` function is translated to `SELECT DISTINCT`.
+
+```{r}
+flights %>% 
+  head() %>% 
+  show_query()
+```
+
+`head()` function is translated to `LIMIT`.
+
+SELECT \*, distance / (air_time / 60) AS speed
+
+FROM flights
+
+2.  **Explain what each of the following SQL queries do and try recreate using dbplyr**
+
+    ``` SQL
+    SELECT *
+    FROM flights
+    WHERE dep_delay < arr_delay
+    ```
+
+    The SQL query selects all columns from the `flights` dataset where the departure delay is less than the arrival delay.
+
+    This query can be recreatedr with:
+
+    ```{r}
+    flights %>% 
+      filter(dep_delay < arr_delay) %>% 
+      show_query()
+    ```
+
+    ``` SQL
+    SELECT *, distance / (air_time / 60) AS speed
+    FROM flights
+    ```
+
+The SQL query selects all columns from flights and adds a new column, `speed`, which calculates distance divided by air time converted converted to hours.
+
+This can be recreated using dplyr as follows:
+
+```{r}
+flights %>% 
+  mutate(speed = distance / (air_time/60)) %>% 
+  show_query()
+```
