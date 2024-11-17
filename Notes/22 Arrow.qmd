@@ -26,7 +26,6 @@ curl::multi_download(
   "https://r4ds.s3.us-west-2.amazonaws.com/seattle-library-checkouts.csv",
    "data/seattle-library-checkouts.csv",
   resume = TRUE
-  
 )
 ```
 
@@ -157,4 +156,14 @@ query <- seattle_pq %>%
     query %>% collect()
     ```
 
-### 
+------------------------------------------------------------------------
+
+You might revisit Parquet when:
+
+-   You work with datasets larger than memory (e.g., multiple GBs or TBs).
+
+-   You need to share datasets efficiently with others in data engineering or analytics pipelines.
+
+-   You start integrating R with big data tools like **Spark** or **AWS S3**.
+
+------------------------------------------------------------------------
