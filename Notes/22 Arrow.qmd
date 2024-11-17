@@ -1,0 +1,160 @@
+---
+title: "22 Arrow"
+format: html
+editor: visual
+---
+
+## 22.1 Introduction
+
+-   In this chapter, you'll learn about the **parquet format,** an open standards-based format widely used by big data systems.
+
+### 22.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+library(arrow)
+library(dbplyr, warn.conflicts = FALSE)
+library(duckdb)
+```
+
+## 22.2 Getting the data
+
+```{r}
+dir.create("data", showWarnings = FALSE)
+
+curl::multi_download(
+  "https://r4ds.s3.us-west-2.amazonaws.com/seattle-library-checkouts.csv",
+   "data/seattle-library-checkouts.csv",
+  resume = TRUE
+  
+)
+```
+
+## 
+
+## 22.3 Opening a dataset
+
+-   At 9GB, this file is large enough that we probably don't want to load the whole thing into memory.
+
+This means we want to avoid `read_csv()` and instead use the `arrow::open_dataset()`:
+
+```{r}
+seattle_csv <- open_dataset(
+  sources = "data/seattle-library-checkouts.csv",
+  col_types = schema(ISB = string()),
+  format = "csv"
+)
+```
+
+-   `open_dataset()` will scan a few thousand rows to figure out the structure of the dataset.
+
+-   Once the data has been scaenned by `open_dataset()`, it records what it's found and stops.
+
+This metadata is what we se if we print `seattle_csv`:
+
+```{r}
+seattle_csv
+```
+
+-   The first line in the output tells you that `seattle_csv` is stored locally on-disk as a single CSV file; it will only be loaded into memory as needed.
+
+We can see what's actually in with `glimpse()`.
+
+```{r}
+seattle_csv %>% glimpse()
+```
+
+-   We can start to use this dataset with dplyr verbs, using `collect()` to force arrow to perform the computation and return some data.
+
+    ```{r}
+    seattle_csv %>% 
+      group_by(CheckoutYear) %>% 
+      summarize(Checkouts = sum(Checkouts)) %>% 
+      arrange(CheckoutYear) %>% 
+      collect()
+    ```
+
+-   Thanks to arrow, this code will work regardless of how large the underlying dataset is.
+
+## 22.4 The parquet format
+
+-   To make this data easier to work with, let's switch to the parquet file format and split it up into multiple files.
+
+    -   Parque files are usually smaller than the equivalent CSV file. Parquet relies on **efficient encodings** to keep file size down, and supports file ocompression.
+
+    -   Parquet files have a rich type system.
+
+    -   Parquet files are "'column-oriented"
+
+    -   Parquet files are "chunked", which makes it possible to work on different parts of the file at the same time, and, if you're lucky, to skip some chunks altogether.
+
+-   There's one primary disadvantage to parquet files: they are no longer "human readable", i.e. if you look at a parquet file using `readr::read_file()`, you'll just see a bunch of gibberish.
+
+### 22.4.2 Partitioning
+
+-   As datasets get larger and larger, storing all the data in a single file gets increasingly painful and it's often useful to split large datasets across many files.
+
+-   There are no hard and fast rules about how to partition your dataset: the results will depend on your data, access patterns, and the systems that read the data.
+
+-   As a rough guide, arrow suggests that you avoid files smaller than 20MB and larger than 2GB and avoid partitions that produce more than 10,000 files.
+
+-   You should also try to partition by variables that you filter by.
+
+### 22.4.3 Rewriting the Seattle library data
+
+-   We're going to partition by `CheckoutYear`, since it's likely some analyses will only want to look at recent data and partitioning by year yields 18 chunks of a reasonable size.
+
+-   To rewrite the data we define the partition using `dplyr::group_by()` and then save the partitions to a directory with `arrow::write_dataset()`.
+
+-   `write_dataset()` has two important arguments: a directory where we'll create the files and the format we'll use.
+
+    ```{r}
+    pq_path <- "data/seattle-library-checkouts"
+    ```
+
+```{r}
+seattle_csv %>% 
+  group_by(CheckoutYear) %>% 
+  write_dataset(path = pq_path, format = "parquet")
+```
+
+-   Let's take a look at what we just produced:
+
+    ```{r}
+    tibble(
+      files = list.files(pq_path, recursive = TRUE),
+      size_MB = file.size(file.path(pq_path, files)) / 1024^2
+    )
+    ```
+
+## 22.5 Using dplyr with arrow
+
+-   Now we've created these parquet files, we'll need to read them in again. We use `open_dataset()` again, but this time we give it a directory:
+
+    ```{r}
+    seattle_pq <- open_dataset(pq_path)
+    ```
+
+-   Now we can write our dplyr pipeline.
+
+For example, we could count the total number of books checked out in each month for the last five years:
+
+```{r}
+query <- seattle_pq %>% 
+  filter(CheckoutYear >= 2018, MaterialType == "BOOK") %>% 
+  group_by(CheckoutYear, CheckoutMonth) %>% 
+  summarize(TotalCheckouts = sum(Checkouts)) %>% 
+  arrange(CheckoutYear, CheckoutMonth)
+```
+
+-   Writing dplyr code for arrow data is conceptually similar do dbplyr: you write dplyr code, which is automatically transformed into a query that the Apache Arrow C++ library understands, which is then executed when you call `collect()`.
+
+    ```{r}
+    query
+    ```
+
+    ```{r}
+    query %>% collect()
+    ```
+
+### 
