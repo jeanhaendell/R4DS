@@ -1,0 +1,185 @@
+---
+title: "23 Hierarchical data"
+format: html
+editor: visual
+---
+
+## 23.1 Introduction
+
+-   In this chapter, we'll learn the art of data **rectangling:** taking the data that is fundamentally hierarchical, or tree-loke, and converting it into a rectangular data frame made up of rows and columns.
+
+### 23.1.1 Prerequisites
+
+```{r}
+library(tidyverse)
+library(repurrrsive)
+library(jsonlite)
+```
+
+## 23.2 Lists
+
+-   If you want to store elements of different types in the same vector, you'll need a **list,** which you create with `list()`:
+
+    ```{r}
+    x1 <- list(1:4, "a", TRUE)
+    x1
+    ```
+
+-   It's often convenient to name the components, or **children**, of a list, which you can do in the same way as naming the columns of a tibble:
+
+    ```{r}
+    x2 <- list(a = 1:2, b = 1:3, c = 1:4)
+    x2
+    ```
+
+-   Even for these very simple lists, printing takes up quite a lot of space.
+
+-   A useful alternative is `str()`, which generates a compact display of the **str**ucture, de-emphasizing the contents:
+
+    ```{r}
+    str(x1)
+    ```
+
+### 23.2.1 Hiearchy
+
+-   Lists can contain any type of object, including other lists.
+
+This makes them suitable for representing hierarchical (tree-like) structures:
+
+```{r}
+x3 <- list(list(1, 2), list(3, 4))
+str(x3)
+```
+
+-   This is notably different from `c()`, which generates a flat vector
+
+    ```{r}
+    c(c(1, 2), c(3, 4))
+    ```
+
+    ```{r}
+    x4 <- c(list(1, 2), list(3, 4))
+    str(x4)
+    ```
+
+-   As lists get more complex, `str()` gets more useful, as it lets you see the hierarchy at a glance:
+
+    ```{r}
+    x5 <- list(1, list(2, list(3, list(4, list(5)))))
+    str(x5)
+    ```
+
+-   As lists get even larger and more complex, `str()` eventually starts to fail, and you'll need to switch to `View()`.
+
+### 23.2.2 List-columns
+
+-   Lists can also live inside a tibble, where we call them list-columns.
+
+    ```{r}
+    df <- tibble(
+      x = 1:2,
+      y = c("a", "b"),
+      z = list(list(1,2), list(3, 4, 5))
+    )
+
+    df
+    ```
+
+## 23.3 Unnesting
+
+-   Let's explore how you can turn lists back into regular rows and columns.
+
+-   List-columns tend to come in two basic forms: named and unnamed.
+
+-   When the children are **named,** they tend to have the same names in every row.
+
+    ```{r}
+    df1 <- tribble(
+      ~x, ~y,
+      1, list(a = 11, b = 12),
+      2, list(a = 21, b = 22),
+      3, list(a = 31, b= 32),
+    )
+
+    df1
+    ```
+
+-   When the children are **unnamed,** the number of elements vary from row-to-row.
+
+    ```{r}
+    df2 <- tribble(
+      ~x, ~y,
+      1, list(11, 12, 13),
+      2, list(21),
+      3, list(31, 32),
+    )
+
+    df2
+    ```
+
+-   `tidyr` provides two functions for these two cases: `unnest_wider()` and `unnest_longer()`.
+
+### 23.3.1 `unnest_wider()`
+
+-   When each row has the same number of elements with the same names, like `df1`, it's natural to put each component into its own column with `unnest_wider()`:
+
+    ```{r}
+    df1 %>% 
+      unnest_wider(y)
+    ```
+
+-   By default, the names of the new columns come exclusively from the names of the list elements, but you can use the `names_sep` argument to request that they combine the column name and the element name.
+
+    ```{r}
+    df1 %>% 
+      unnest_wider(y, names_sep = "_")
+    ```
+
+### 23.3.2 `unnest_longer()`
+
+-    When each row contains an unnamed list, it's most natural to put each element into its own row with `unnest_longer()`:
+
+    ```{r}
+    df2 %>% 
+      unnest_longer(y)
+    ```
+
+-   But what happens if one of the elements if empty, as in the following example?
+
+    ```{r}
+    df6 <- tribble(
+      ~x, ~y,
+      "a", list(1, 2),
+      "b", list(3),
+      "c", list()
+    )
+
+    df6 %>% unnest_longer(y)
+    ```
+
+-   We get zero rows in the output, so the row effectively disappears.
+
+-   If you want to preserve that row, adding `NA` in `y`, set `keep_empty = TRUE`.
+
+### 23.3.3 Inconsistent types
+
+-   What happens if you unnest a list-column that contains different types of vector?
+
+    ```{r}
+    df4 <- tribble(
+      ~x,~y,
+      "a", list(1),
+      "b", list("a", TRUE, 5)
+    )
+    ```
+
+-   `unnest_longer()` always keeps the set of columns unchanged, while changing the number of rows.
+
+    ```{r}
+    df4 %>% 
+      unnest_longer(y)
+    ```
+
+-   Because `unnest_longer()` can't find a common type of cevtor, it keeps the original types in a list-column.
+
+-   Every element is a list, even though the contents are of different types.
