@@ -21,6 +21,47 @@ editor: visual
     df2 %>% unnest_wider(y, names_sep = "_")
     ```
 
-    The `unnest_wider()` function applied to unnamed list-columns, like `df2` returns an error, which can be solver by adding the argument `names_sep` to the function. The missing values become `NA`'s.
+    When applied to unnamed list-columns like `y` in `df2`, an error occurs because `unnest_wider()` cannot automatically assign column names. To resolve this, the `names_sep` argument is necessary. It provides a naming scheme by appending a unique suffix to a base name, such as `y_1`, `y_2`, etc.
 
-2.   **What happens when you use `unnest_longer()`** **with named list-columns like `df1`**
+    Missing values in the list are filled with `NA`, ensuring the resulting tibble has consistent column lengths.
+
+2.   **What happens when you use `unnest_longer()`** **with named list-columns like `df1`**? **What additional information do you get in the output? How can you suppress that extra detail?**
+
+    ```{r}
+    df1 <- tribble(
+      ~x, ~y,
+      1, list(a = 11, b = 12),
+      2, list(a = 21, b = 22),
+      3, list(a = 31, b = 32),
+    )
+
+    ```
+
+    ```{r}
+    df1 %>% unnest_longer(y, indices_include = FALSE)
+    ```
+
+In addition to the unlisted values, a new column is added to capture the **names of the list elements** (e.g., `a`, `b`). These names are referred to as indices. To suppress this additional detail (i.e., the indices column), you can set the `indices_include` argument to `FALSE`.
+
+3.  **From time-to-time you encounter data frames with multiple list-columns with aligned values. For example, in the following data frame, the values of `y` and `z` are aligned (i.e. `y` and `z` will always have the same length within a row, and the first value of `y` corresponds to the first value of `z`). What happens if you apply two [`unnest_longer()`](https://tidyr.tidyverse.org/reference/unnest_longer.html) calls to this data frame? How can you preserve the relationship between `x` and `y`? (Hint: carefully read the docs).**
+
+    ```{r}
+    df4 <- tribble(
+      ~x, ~y, ~z,
+      "a", list("y-a-1", "y-a-2"), list("z-a-1", "z-a-2"),
+      "b", list("y-b-1", "y-b-2", "y-b-3"), list("z-b-1", "z-b-2", "z-b-3")
+    )
+    ```
+
+    ```{r}
+    df4 %>% unnest_longer(y) %>% unnest_longer(z)
+
+    ```
+
+If you apply `unnest_longer()` separately to the list-columns `y` and `z`, the relationship between the two columns is **not preserved**. This results in a Cartesian product where every value of `y` is paired with every value of `z` within a row, leading to incorrect data.
+
+```{r}
+df4 %>% unnest_longer(c(y, z))
+```
+
+To preserve the relationship between `y` and `z`, you can pass both columns as a vector to `unnest_longer()` using `c(y, z)`.
