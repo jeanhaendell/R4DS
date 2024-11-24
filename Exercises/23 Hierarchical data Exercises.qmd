@@ -1,0 +1,26 @@
+---
+title: "23 Hiearchical data Exercises"
+format: html
+editor: visual
+---
+
+### 23.3.5 Exercises
+
+1.  **What happens when you use `unnest_wider()` with unnamed list-columns like `df2`? What argument is now necessary? What happens to missing values?**
+
+    ```{r}
+    df2 <- tribble(
+      ~x, ~y,
+      1, list(11, 12, 13),
+      2, list(21),
+      3, list(31, 32),
+    )
+    ```
+
+    ```{r}
+    df2 %>% unnest_wider(y, names_sep = "_")
+    ```
+
+    The `unnest_wider()` function applied to unnamed list-columns, like `df2` returns an error, which can be solver by adding the argument `names_sep` to the function. The missing values become `NA`'s.
+
+2.   **What happens when you use `unnest_longer()`** **with named list-columns like `df1`**
